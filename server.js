@@ -715,8 +715,6 @@ bot.on('message:text', async (ctx) => {
     if (user.state === 'AWAITING_PERSONAL_MESSAGE') {
         const access = hasActiveAccess(user, 'solo');
         if (!access.allowed) {
-const access = hasActiveAccess(user, 'solo');
-        if (!access.allowed) {
             const adminUsername = process.env.ADMIN_USERNAME || 'адміністратор';
             await ctx.reply(
                 `🔒 **Ваш безкоштовний тестовий період завершено.**\n\n` +
