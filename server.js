@@ -712,32 +712,32 @@ bot.on('message:text', async (ctx) => {
     }
 
 // --- БЛОК ОСОБИСТОГО РОЗБОРУ ---
-if (user.state === 'AWAITING_PERSONAL_MESSAGE') {
-    const access = hasActiveAccess(user, 'solo');
-    
-    if (!access.allowed) {
-        const adminUsername = process.env.ADMIN_USERNAME || 'адміністратор';
-        await ctx.reply(
-            `🔒 **Ваш безкоштовний тестовий період завершено.**\n\n` +
-            `Щоб продовжити користуватися платформами WeSync, оберіть відповідний тариф:\n\n` +
-            `👤 **Індивідуальний (Соло):** 300 грн / місяць\n` +
-            `👥 **Парний (Медіація):** 500 грн / місяць\n\n` +
-            `💳 Для оформлення оплати та активації напишіть адміністратору: @${adminUsername}\n` +
-            `🆔 Ваш ID для підключення: \`${userId}\``,
-            { parse_mode: "Markdown" }
-        );
-        user.state = 'IDLE';
-        await user.save();
-        return;
-    }
+    if (user.state === 'AWAITING_PERSONAL_MESSAGE') {
+        const access = hasActiveAccess(user, 'solo');
+        
+        if (!access.allowed) {
+            const adminUsername = process.env.ADMIN_USERNAME || 'адміністратор';
+            await ctx.reply(
+                `🔒 **Ваш безкоштовний тестовий період завершено.**\n\n` +
+                `Щоб продовжити користуватися платформами WeSync, оберіть відповідний тариф:\n\n` +
+                `👤 **Індивідуальний (Соло):** 300 грн / місяць\n` +
+                `👥 **Парний (Медіація):** 500 грн / місяць\n\n` +
+                `💳 Для оформлення оплати та активації напишіть адміністратору: @${adminUsername}\n` +
+                `🆔 Ваш ID для підключення: \`${userId}\``,
+                { parse_mode: "Markdown" }
+            );
+            user.state = 'IDLE';
+            await user.save();
+            return;
+        }
 
-    if (access.isFreeTrial) {
-        user.hasUsedFreeSession = true;
-        await user.save();
-    }
+        if (access.isFreeTrial) {
+            user.hasUsedFreeSession = true;
+            await user.save();
+        }
 
-    const textToAnalyze = ctx.message.text;
-    await ctx.reply("⏳ Аналізую ситуацію через призму аналітичної психології...");
+        const textToAnalyze = ctx.message.text;
+        await ctx.reply("⏳ Аналізую ситуацію через призму аналітичної психології...");
         let aiReply = "";
         let success = false;
         const maxRetries = 5;
@@ -773,7 +773,8 @@ if (user.state === 'AWAITING_PERSONAL_MESSAGE') {
         if (!success) {
             aiReply = "Помилка аналізу. Сервери перевантажені. Будь ласка, спробуйте ще раз за кілька хвилин.";
         }
-      const feedbackMsg = "Як ви оцінюєте цей розбір? Чи допоміг він поглянути на ситуацію інакше?";
+      
+        const feedbackMsg = "Як ви оцінюєте цей розбір? Чи допоміг він поглянути на ситуацію інакше?";
         const feedbackKeyboard = new InlineKeyboard()
             .text("🟢 Так, стало легше", "feedback_good")
             .text("🔴 Ні, не допомогло", "feedback_bad");
@@ -785,7 +786,6 @@ if (user.state === 'AWAITING_PERSONAL_MESSAGE') {
         await user.save();
         return;
     }
-
     // --- БЛОК ЗАПИТУ ДО ПСИХОЛОГА ---
     if (user.state === 'AWAITING_SUPPORT_MESSAGE') {
         let dossier = `🚨 **Новий запит на консультацію!**\n\n👤 **Клієнт:** ${ctx.from.first_name} (ID: ${ctx.from.id})\n`;
