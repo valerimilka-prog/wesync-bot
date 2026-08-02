@@ -712,81 +712,81 @@ bot.on('message:text', async (ctx) => {
     }
 
 // --- БЛОК ОСОБИСТОГО РОЗБОРУ ---
-if (user.state === 'AWAITING_PERSONAL_MESSAGE') {
-    const access = hasActiveAccess(user, 'solo');
-    
-    if (!access.allowed) {
-        const adminUsername = process.env.ADMIN_USERNAME || 'адміністратор';
-        const userIdStr = String(userId || ctx.from.id);
+    if (user.state === 'AWAITING_PERSONAL_MESSAGE') {
+        const access = hasActiveAccess(user, 'solo');
         
-        await ctx.reply(
-            `🔒 **Ваш безкоштовний тестовий період завершено.**\n\n` +
-            `Щоб продовжити користуватися платформами WeSync, оберіть відповідний тариф:\n\n` +
-            `👤 **Індивідуальний (Соло):** 300 грн / місяць\n` +
-            `👥 **Парний (Медіація):** 500 грн / місяць\n\n` +
-            `💳 Для оформлення оплати та активації напишіть адміністратору: @${adminUsername}\n` +
-            `🆔 Ваш ID для підключення: \`${userIdStr}\``,
-            { parse_mode: "Markdown" }
-        );
+        if (!access.allowed) {
+            const adminUsername = process.env.ADMIN_USERNAME || 'адміністратор';
+            const userIdStr = String(userId || ctx.from.id);
+            
+            await ctx.reply(
+                `🔒 *Ваш безкоштовний тестовий період завершено.*\n\n` +
+                `Щоб продовжити користуватися платформами WeSync, оберіть відповідний тариф:\n\n` +
+                `👤 *Індивідуальний (Соло):* 300 грн / місяць\n` +
+                `👥 *Парний (Медіація):* 500 грн / місяць\n\n` +
+                `💳 Для оформлення оплати та активації напишіть адміністратору: @${adminUsername}\n` +
+                `🆔 Ваш ID для підключення: ${userIdStr}`,
+                { parse_mode: "Markdown" }
+            );
+            user.state = 'IDLE';
+            await user.save();
+            return;
+        }
+
+        if (access.isFreeTrial) {
+            user.hasUsedFreeSession = true;
+            await user.save();
+        }
+
+        const textToAnalyze = ctx.message.text;
+        await ctx.reply("⏳ Аналізую ситуацію через призму аналітичної психології...");
+        let aiReply = "";
+        let success = false;
+        const maxRetries = 5;
+
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                const modelName = (attempt <= 2) ? "gemini-3.5-flash" : "gemini-3.1-flash-lite";
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${process.env.GEMINI_API_KEY}`;
+                const fetchRes = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        contents: [
+                            { role: "user", parts: [{ text: `ІНСТРУКЦІЯ:\n${WESYNC_SYSTEM_PROMPT}\n\nЗроби глибокий індивідуальний розбір:\n\n${textToAnalyze}` }] }
+                        ] 
+                    })
+                });
+                const data = await fetchRes.json();
+                
+                if (fetchRes.ok) {
+                    aiReply = data.candidates[0].content.parts[0].text;
+                    success = true; 
+                    break;
+                } else {
+                    if (fetchRes.status === 429) break;
+                    if (attempt < maxRetries) await new Promise(r => setTimeout(r, 5000));
+                }
+            } catch (err) {
+                if (attempt < maxRetries) await new Promise(r => setTimeout(r, 5000));
+            }
+        }
+        
+        if (!success) {
+            aiReply = "Помилка аналізу. Сервери перевантажені. Будь ласка, спробуйте ще раз за кілька хвилин.";
+        }
+      
+        const feedbackKeyboard = new InlineKeyboard()
+            .text("🟢 Так, стало легше", "feedback_good")
+            .text("🔴 Ні, не допомогло", "feedback_bad");
+            
+        await ctx.reply(aiReply, { reply_markup: feedbackKeyboard });
+        if (!user.chatHistory) user.chatHistory = [];
+        user.chatHistory.push({ role: 'user', content: textToAnalyze }, { role: 'model', content: aiReply });
         user.state = 'IDLE';
         await user.save();
         return;
     }
-
-    if (access.isFreeTrial) {
-        user.hasUsedFreeSession = true;
-        await user.save();
-    }
-
-    const textToAnalyze = ctx.message.text;
-    await ctx.reply("⏳ Аналізую ситуацію через призму аналітичної психології...");
-    let aiReply = "";
-    let success = false;
-    const maxRetries = 5;
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-            const modelName = (attempt <= 2) ? "gemini-3.5-flash" : "gemini-3.1-flash-lite";
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${process.env.GEMINI_API_KEY}`;
-            const fetchRes = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    contents: [
-                        { role: "user", parts: [{ text: `ІНСТРУКЦІЯ:\n${WESYNC_SYSTEM_PROMPT}\n\nЗроби глибокий індивідуальний розбір:\n\n${textToAnalyze}` }] }
-                    ] 
-                })
-            });
-            const data = await fetchRes.json();
-            
-            if (fetchRes.ok) {
-                aiReply = data.candidates[0].content.parts[0].text;
-                success = true; 
-                break;
-            } else {
-                if (fetchRes.status === 429) break;
-                if (attempt < maxRetries) await new Promise(r => setTimeout(r, 5000));
-            }
-        } catch (err) {
-            if (attempt < maxRetries) await new Promise(r => setTimeout(r, 5000));
-        }
-    }
-    
-    if (!success) {
-        aiReply = "Помилка аналізу. Сервери перевантажені. Будь ласка, спробуйте ще раз за кілька хвилин.";
-    }
-  
-    const feedbackKeyboard = new InlineKeyboard()
-        .text("🟢 Так, стало легше", "feedback_good")
-        .text("🔴 Ні, не допомогло", "feedback_bad");
-        
-    await ctx.reply(aiReply, { reply_markup: feedbackKeyboard });
-    if (!user.chatHistory) user.chatHistory = [];
-    user.chatHistory.push({ role: 'user', content: textToAnalyze }, { role: 'model', content: aiReply });
-    user.state = 'IDLE';
-    await user.save();
-    return;
-}
     // --- БЛОК ЗАПИТУ ДО ПСИХОЛОГА ---
     if (user.state === 'AWAITING_SUPPORT_MESSAGE') {
         let dossier = `🚨 **Новий запит на консультацію!**\n\n👤 **Клієнт:** ${ctx.from.first_name} (ID: ${ctx.from.id})\n`;
