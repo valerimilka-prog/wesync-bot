@@ -30,7 +30,6 @@ const userSchema = new mongoose.Schema({
         content: String,    
         timestamp: { type: Date, default: Date.now } 
     }],
-    // --- НОВЕ: ПОЛЕ ДЛЯ ПРОТОКОЛУ "ПОДВІЙНИЙ КЛЮЧ" (Завдання) ---
     tasks: [{
         description: String,
         status: { type: String, default: 'PENDING' }, // PENDING або VERIFIED
@@ -39,14 +38,12 @@ const userSchema = new mongoose.Schema({
     }],
     goodFeedback: { type: Number, default: 0 },
     badFeedback: { type: Number, default: 0 },
-    // --- ПОЛЕ ПІДПИСКИ ТА ЛІМІТІВ ---
     subscription: {
         plan: { type: String, default: 'free' },
         expiresAt: { type: Date, default: null },
         isActive: { type: Boolean, default: false }
     },
     hasUsedFreeSession: { type: Boolean, default: false },
-    // --- НОВЕ: ПОЛЕ ДЛЯ ТЕКСТОВИХ ВІДГУКІВ ---
     feedbackComments: [{
         text: String,
         timestamp: { type: Date, default: Date.now }
@@ -54,21 +51,18 @@ const userSchema = new mongoose.Schema({
 });
 
 const User = mongoose.model('User', userSchema);
+
 // --- ФУНКЦІЯ ПЕРЕВІРКИ ДОСТУПУ ТА ПІДПИСКИ ---
 function hasActiveAccess(user, requiredPlan = 'solo') {
-    // 1. Якщо це перший раз — даємо безкоштовний тестовий доступ
     if (!user.hasUsedFreeSession) {
         return { allowed: true, isFreeTrial: true };
     }
 
-    // 2. Якщо є активна підписка
     if (user.subscription && user.subscription.isActive && user.subscription.expiresAt) {
         const now = new Date();
         const expiresAt = new Date(user.subscription.expiresAt);
 
-        // Перевіряємо, чи не закінчився термін дії
         if (expiresAt > now) {
-            // Якщо потрібен парний тариф, а у юзера тільки соло
             if (requiredPlan === 'pair' && user.subscription.plan !== 'pair') {
                 return { allowed: false, reason: 'NEED_PAIR_PLAN' };
             }
@@ -78,6 +72,7 @@ function hasActiveAccess(user, requiredPlan = 'solo') {
 
     return { allowed: false, reason: 'EXPIRED' };
 }
+
 bot.use(session({
     initial: () => ({
         step: 'IDLE',
@@ -113,6 +108,7 @@ const WESYNC_SYSTEM_PROMPT = `
 - НІКОЛИ не цитуй прямі звинувачення одного партнера іншому.
 - Наприкінці ПАРНОГО розбору обов'язково окремим абзацом додавай: "⚠️ Правило екологічності: Цей розбір створений не для того, щоб ви звинувачували одне одного. Використання цих слів для докорів лише погіршить ситуацію. Ваша мета — зрозуміти свій внесок у конфлікт і почати з себе."
 `;
+
 // Команда /start 
 bot.command('start', async (ctx) => {
     const userId = ctx.from.id.toString();
@@ -199,7 +195,6 @@ bot.command('reset', async (ctx) => {
         user.state = 'IDLE';
         user.chatHistory = []; 
         
-        // --- НОВЕ: Розриваємо зв'язок з партнером ---
         if (user.partnerId) {
             const partner = await User.findOne({ telegramId: user.partnerId });
             if (partner) {
@@ -220,7 +215,8 @@ bot.command('reset', async (ctx) => {
         await ctx.reply("Ви ще не зареєстровані. Натисніть /start.");
     }
 });
-// Команда /menu – Виклик головного меню в будь-який момент
+
+// Команда /menu
 bot.command('menu', async (ctx) => {
     const userId = String(ctx.from.id);
     const adminId = process.env.ADMIN_ID;
@@ -266,8 +262,6 @@ bot.on('callback_query:data', async (ctx) => {
     try {
         if (data === 'admin_stats') {
             const usersCount = await User.countDocuments();
-            
-            // Підраховуємо всі відгуки з бази
             const allUsers = await User.find({});
             let totalGood = 0;
             let totalBad = 0;
@@ -300,7 +294,13 @@ bot.on('callback_query:data', async (ctx) => {
                 await ctx.reply(userListText);
             }
         } else if (data === 'contact_admin') {
-            } else if (data === 'admin_grant_access') {
+            if (user) {
+                user.state = 'AWAITING_SUPPORT_MESSAGE';
+                await user.save();
+                await ctx.reply("Напишіть ваше запитання або опишіть проблему одним повідомленням. Я зберу історію вашого конфлікту та передам її психологу.");
+            }
+            return;
+        } else if (data === 'admin_grant_access') {
             if (user) {
                 user.state = 'AWAITING_GRANT_INFO';
                 await user.save();
@@ -313,15 +313,9 @@ bot.on('callback_query:data', async (ctx) => {
                     { parse_mode: "HTML" }
                 );
             }
-            if (user) {
-                user.state = 'AWAITING_SUPPORT_MESSAGE';
-                await user.save();
-                await ctx.reply("Напишіть ваше запитання або опишіть проблему одним повідомленням. Я зберу історію вашого конфлікту та передам її психологу.");
-            }
             return;
         } else if (data === 'start_session' || data === 'start_mediation') {
             await ctx.reply("📄 Ви обрали створення нової сесії...\n\nБудь ласка, опишіть своє бачення конфлікту.");
-        // --- ЛОГІКА КНОПОК ЗАВДАНЬ ---
         } else if (data === 'create_task') {
             if (!user.partnerId) return ctx.reply("Спочатку підключіть партнера.");
             user.state = 'AWAITING_TASK_DESC';
@@ -337,7 +331,6 @@ bot.on('callback_query:data', async (ctx) => {
             if (user && user.partnerId) {
                 await bot.api.sendMessage(user.partnerId, "❌ Ваш партнер **відхилив** ваше завдання. Можливо, варто обговорити інші умови.");
             }
-        // --- КІНЕЦЬ ЛОГІКИ ЗАВДАНЬ ---
         } else if (data === 'join_partner' || data === 'invite_partner' || data === 'connect_partner') {
             const botInfo = await bot.api.getMe();
             const inviteLink = `https://t.me/${botInfo.username}?start=connect_${userId}`;
@@ -354,7 +347,6 @@ bot.on('callback_query:data', async (ctx) => {
             const helpText = `ℹ️ <b>Як працює WeSync:</b>\n\n1️⃣ <b>Парна медіація:</b>\n   • Спершу натисніть <b>«Підключитися до партнера»</b>.\n   • Дочекайтеся підключення партнера.\n   • Після цього натисніть <b>«Почати медіацію»</b>.\n\n2️⃣ <b>Індивідуальний розбір:</b> Якщо ви хочете розібратися самостійно, натисніть <b>«Особистий розбір»</b>.\n\n3️⃣ <b>Зв'язок із фахівцем:</b> Звернутися до психолога напряму через червону кнопку.`;
             await ctx.reply(helpText, { parse_mode: "HTML" });
         } 
-        // --- ОБРОБКА КНОПОК ВІДГУКУ (З КОМЕНТАРЯМИ) ---
         else if (data === 'feedback_good' || data === 'feedback_bad') {
             const isGood = data === 'feedback_good';
             const adminId = process.env.ADMIN_ID;
@@ -369,22 +361,19 @@ bot.on('callback_query:data', async (ctx) => {
                     }
                 } else {
                     user.badFeedback = (user.badFeedback || 0) + 1;
-                    user.state = 'AWAITING_FEEDBACK_COMMENT'; // Переводимо в режим очікування коментаря
+                    user.state = 'AWAITING_FEEDBACK_COMMENT'; 
                     await user.save();
                     await ctx.editMessageText("Дякуємо за відгук 💔. Будь ласка, напишіть коротким повідомленням, що саме вам не сподобалося (наприклад: забагато води, нерелевантна порада, грубий тон):");
                 }
             }
         }
-             // --- РОЗУМНА ЧЕРВОНА КНОПКА (КЕРУВАННЯ АДМІНОМ) ---
         else if (data.startsWith('send_draft_')) {
             const clientId = data.split('send_draft_')[1];
             const session = supportSessions.get(clientId);
 
             if (session && session.draft) {
-                // Записуємо відправлену чернетку в історію
                 session.history.push({ role: "model", parts: [{ text: session.draft }] });
                 supportSessions.set(clientId, session);
-
                 await bot.api.sendMessage(clientId, `📩 **Повідомлення від фахівця:**\n\n${session.draft}`);
                 await ctx.reply(`✅ Відповідь надіслано! Сесія триває, очікуємо на відповідь клієнта.`);
             } else {
@@ -392,7 +381,6 @@ bot.on('callback_query:data', async (ctx) => {
             }
         }
         else if (data.startsWith('end_session_')) {
-            // НОВА КНОПКА: Завершення сесії
             const clientId = data.split('end_session_')[1];
             const client = await User.findOne({ telegramId: clientId });
 
@@ -401,7 +389,6 @@ bot.on('callback_query:data', async (ctx) => {
                 await client.save();
                 await bot.api.sendMessage(clientId, "🏁 Сесію з фахівцем завершено. Дякуємо за звернення.");
             }
-
             supportSessions.delete(clientId);
             await ctx.reply("❌ Сесію успішно закрито. Клієнта переведено у звичайний режим.");
         }
@@ -422,13 +409,11 @@ bot.on('callback_query:data', async (ctx) => {
         await ctx.reply("Виникла технічна помилка при обробці запиту.");
     }
 });
-// --- ЄДИНИЙ ОБРОБНИК ПОВІДОМЛЕНЬ ТА СИНХРОНІЗАЦІЇ ---
-// --- АДМІНСЬКА КОМАНДА: ВИТЯГТИ ВСІ ВІДГУКИ З БАЗИ ---
+
 bot.command('feedback', async (ctx) => {
     const adminId = process.env.ADMIN_ID;
     const userId = String(ctx.from.id);
     
-    // Перевірка, чи команду викликає саме адмін
     if (userId !== String(adminId)) return;
 
     const usersWithFeedback = await User.find({ "feedbackComments.0": { $exists: true } });
@@ -469,7 +454,7 @@ bot.on('message:text', async (ctx) => {
     const user = await User.findOne({ telegramId: userId });
     
     if (!user) return ctx.reply("Будь ласка, почніть з команди /start для реєстрації.");
-    // --- БЛОК АКТИВАЦІЇ ПІДПИСКИ АДМІНОМ ---
+    
     if (user.state === 'AWAITING_GRANT_INFO' && String(userId) === String(adminId)) {
         const parts = text.trim().split(' ');
         
@@ -518,56 +503,49 @@ bot.on('message:text', async (ctx) => {
         }
         return;
     }
-    // --- БЛОК ПРИЙОМУ КОМЕНТАРЯ ДО ВІДГУКУ ---
+
     if (user.state === 'AWAITING_FEEDBACK_COMMENT') {
         const feedbackText = ctx.message.text;
         
-        // 1. ЗБЕРІГАЄМО ТЕКСТ У БАЗУ ДАНИХ
         if (!user.feedbackComments) {
             user.feedbackComments = [];
         }
         user.feedbackComments.push({ text: feedbackText });
         
-        // 2. Відправляємо коментар адміну в Telegram
         if (adminId) {
             await bot.api.sendMessage(adminId, `📝 **Детальний відгук (Негативний):**\nКористувач: ${ctx.from.first_name} (ID: ${userId})\nКоментар: "${feedbackText}"`);
         }
         
         await ctx.reply("Дякуємо! Ваш коментар передано розробникам та надійно збережено. Це допоможе нам покращити алгоритми.");
         
-        user.state = 'IDLE'; // Повертаємо користувача в звичайний режим
-        await user.save(); // Фіксуємо зміни в базі даних!
-        return; // Зупиняємо подальшу обробку повідомлення
+        user.state = 'IDLE'; 
+        await user.save(); 
+        return; 
     }
-  // 3.1. Клієнт пише в службу підтримки (початок або продовження живої сесії)
+
     if (user.state === 'AWAITING_SUPPORT_MESSAGE' || user.state === 'IN_SUPPORT_SESSION') {
         await ctx.reply("⏳ Аналізую ваш запит та передаю фахівцю. Зачекайте...");
         
-        // Переводимо клієнта в режим безперервної сесії
         if (user.state === 'AWAITING_SUPPORT_MESSAGE') {
             user.state = 'IN_SUPPORT_SESSION'; 
             await user.save();
         }
 
-        // Дістаємо історію діалогу або створюємо нову
         let session = supportSessions.get(userId);
         if (!session) {
             session = { history: [], draft: "", model: "" };
         }
 
-        // Записуємо слова клієнта в історію
         session.history.push({ role: "user", parts: [{ text: text }] });
 
         let aiDraft = "";
         let modelUsed = "";
         
-        // Готуємо контекст для ШІ (копіюємо історію, щоб не зіпсувати оригінал)
         const aiContents = JSON.parse(JSON.stringify(session.history));
         const lastIndex = aiContents.length - 1;
         aiContents[lastIndex].parts[0].text = `[СИСТЕМНЕ ЗАВДАННЯ: Ти — помічник психолога. Проаналізуй цю історію діалогу. Напиши підтримуючу чернетку відповіді на останнє повідомлення клієнта. ВИВЕДИ ТІЛЬКИ ТЕКСТ ВІДПОВІДІ.]\n\nОстаннє повідомлення клієнта: "${text}"`;
         
         try {
-            // --- ОСНОВНА МОДЕЛЬ (3.5 Flash) ---
             const fetchRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ contents: aiContents })
@@ -579,7 +557,6 @@ bot.on('message:text', async (ctx) => {
         } catch (err) {
             console.warn("⚠️ Модель 3.5 не спрацювала, запускаємо 3.1. Причина:", err.message);
             try {
-                // --- СТРАХОВКА (3.1 Flash-Lite) ---
                 const fetchResBackup = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ contents: aiContents })
@@ -596,7 +573,7 @@ bot.on('message:text', async (ctx) => {
 
         session.draft = aiDraft;
         session.model = modelUsed;
-        supportSessions.set(userId, session); // Зберігаємо оновлену сесію
+        supportSessions.set(userId, session); 
 
         const adminId = process.env.ADMIN_ID;
         if (adminId) {
@@ -604,7 +581,7 @@ bot.on('message:text', async (ctx) => {
                 .text("✅ Відправити чернетку", `send_draft_${userId}`).row()
                 .text("✍️ Відповісти напряму", `direct_reply_${userId}`).row()
                 .text("🧠 Обговорити з ШІ", `discuss_ai_${userId}`).row()
-                .text("❌ Завершити сесію", `end_session_${userId}`); // НОВА КНОПКА
+                .text("❌ Завершити сесію", `end_session_${userId}`); 
 
             let dossier = `🚨 <b>Новий запит на консультацію!</b>\n\n👤 <b>Клієнт:</b> ${ctx.from.first_name} (ID: ${ctx.from.id})\n`;
             if (user.partnerId) dossier += `🔗 <b>Партнер ID:</b> ${user.partnerId}\n`;
@@ -619,11 +596,9 @@ bot.on('message:text', async (ctx) => {
         return;
     }
 
-    // 3.2. Адмін відповідає напряму (ручний ввід)
     if (user.state.startsWith('ADMIN_REPLY_')) {
         const clientId = user.state.split('ADMIN_REPLY_')[1];
         
-        // Записуємо твою ручну відповідь в історію, щоб ШІ знав, що ти відповів!
         let session = supportSessions.get(clientId);
         if (session) {
             session.history.push({ role: "model", parts: [{ text: text }] });
@@ -633,12 +608,11 @@ bot.on('message:text', async (ctx) => {
         await bot.api.sendMessage(clientId, `📩 **Повідомлення від фахівця:**\n\n${text}`);
         await ctx.reply(`✅ Відповідь відправлено. Сесія ТРИВАЄ. Очікуємо на реакцію клієнта.`);
         
-        user.state = 'IDLE'; // Звільняємо адміна, але клієнт залишається IN_SUPPORT_SESSION
+        user.state = 'IDLE'; 
         await user.save();
         return;
     }
 
-    // 3.3. Адмін обговорює чернетку з ШІ
     if (user.state.startsWith('ADMIN_DISCUSS_')) {
         const clientId = user.state.split('ADMIN_DISCUSS_')[1];
         const session = supportSessions.get(clientId);
@@ -686,14 +660,12 @@ bot.on('message:text', async (ctx) => {
         user.state = 'IDLE'; await user.save();
         return;
     }
-    // --- БЛОК ТРАНСФОРМАЦІЇ ЗАВДАНЬ (Подвійний ключ) ---
+
     if (user.state === 'AWAITING_TASK_DESC') {
         const partner = await User.findOne({ telegramId: user.partnerId });
-        // --- ПЕРЕВІРКА ПІДПИСКИ ДЛЯ ПАРИ ---
         const userAccess = hasActiveAccess(user, 'pair');
         const partnerAccess = partner ? hasActiveAccess(partner, 'pair') : { allowed: false };
 
-        // Перевіряємо, чи має хоча б один із партнерів доступ (або це безкоштовна сесія)
         const canStartSession = userAccess.allowed || partnerAccess.allowed;
 
         if (!canStartSession) {
@@ -713,7 +685,6 @@ bot.on('message:text', async (ctx) => {
             return;
         }
 
-        // Якщо це була безкоштовна сесія — відмічаємо, що вона використана для обох
         if (userAccess.isFreeTrial) user.hasUsedFreeSession = true;
         if (partner && partnerAccess.isFreeTrial) {
             partner.hasUsedFreeSession = true;
@@ -748,7 +719,9 @@ bot.on('message:text', async (ctx) => {
         return;
     }
 
-if (!access.allowed) {
+    if (user.state === 'AWAITING_PERSONAL_MESSAGE') {
+        const access = hasActiveAccess(user, 'solo');
+        if (!access.allowed) {
             const adminUsername = process.env.ADMIN_USERNAME || 'адміністратор';
             await ctx.reply(
                 `🔒 <b>Ваш безкоштовний тестовий період завершено.</b>\n\n` +
@@ -765,7 +738,6 @@ if (!access.allowed) {
             return;
         }
 
-        // Якщо це була безкоштовна сесія — фіксуємо, що вона використана
         if (access.isFreeTrial) {
             user.hasUsedFreeSession = true;
         }
@@ -795,7 +767,7 @@ if (!access.allowed) {
                     success = true; 
                     break;
                 } else {
-                    if (fetchRes.status === 429) break; // Якщо ліміт вичерпано — зупиняємось
+                    if (fetchRes.status === 429) break; 
                     if (attempt < maxRetries) await new Promise(r => setTimeout(r, 5000));
                 }
             } catch (err) {
@@ -806,7 +778,7 @@ if (!access.allowed) {
         if (!success) {
             aiReply = "Помилка аналізу. Сервери перевантажені. Будь ласка, спробуйте ще раз за кілька хвилин.";
         }
-      const feedbackMsg = "Як ви оцінюєте цей розбір? Чи допоміг він поглянути на ситуацію інакше?";
+        const feedbackMsg = "Як ви оцінюєте цей розбір? Чи допоміг він поглянути на ситуацію інакше?";
         const feedbackKeyboard = new InlineKeyboard()
             .text("🟢 Так, стало легше", "feedback_good")
             .text("🔴 Ні, не допомогло", "feedback_bad");
@@ -824,8 +796,6 @@ if (!access.allowed) {
 
     const partner = await User.findOne({ telegramId: user.partnerId });
 
-   
-// --- БЛОК ЗБОРУ ІСТОРІЙ І ПАРНОЇ МЕДІАЦІЇ (ПЕРСОНАЛІЗОВАНИЙ + БЕЗПЕКА) ---
     if (user.state === 'AWAITING_STORY' || user.state === 'IDLE') {
         if (!user.chatHistory) user.chatHistory = [];
         user.chatHistory.push({ role: 'user', content: text });
@@ -844,7 +814,6 @@ if (!access.allowed) {
             }
             const userStory = text;
 
-            // Запит для перевірки безпеки (Червоний протокол)
             const safetyCheckPrompt = `ІНСТРУКЦІЯ:\n${WESYNC_SYSTEM_PROMPT}\n\nІСТОРІЯ ПАРТНЕРА 1:\n${partnerStory}\n\nІСТОРІЯ ПАРТНЕРА 2:\n${userStory}`;
 
             try {
@@ -873,7 +842,6 @@ if (!access.allowed) {
                 if (!success) throw new Error("API Error");
                 const responseText = data.candidates[0].content.parts[0].text;
 
-                // --- ЧЕРВОНИЙ ПРОТОКОЛ ---
                 if (responseText.includes('STOP_EMERGENCY_ALERT')) {
                     const alertMsg = "⚠️ <b>Автоматична медіація зупинена через порушення правил безпеки.</b>\nДля безпеки вашої пари пропонується підключення Ментора. Психолог вже отримав сповіщення.";
                     await ctx.reply(alertMsg, { parse_mode: "HTML" });
@@ -890,7 +858,6 @@ if (!access.allowed) {
                     return; 
                 }
 
-                // --- ТРОЯНСЬКИЙ КІНЬ (ТІЛЬКИ ДЛЯ АДМІНА) ---
                 if (adminId) {
                     try {
                         const adminPrompt = `Ти — супервізор. На основі двох історій пацієнтів та розбору медіації, підготуй коротке резюме особисто для психолога. Виділи: 1. Ключову динаміку пари. 2. Приховані маніпуляції. 3. Три рекомендації для терапії.\n\nІСТОРІЯ 1:\n${partnerStory}\n\nІСТОРІЯ 2:\n${userStory}\n\nРОЗБІР ШІ:\n${responseText}`;
@@ -911,9 +878,7 @@ if (!access.allowed) {
                     }
                 }
 
-                // --- НОВЕ: ГЕНЕРАЦІЯ ПЕРСОНАЛІЗОВАНИХ РОЗБОРІВ ДЛЯ КОЖНОГО ---
                 const promptForCurrentUser = `ІНСТРУКЦІЯ:\n${WESYNC_SYSTEM_PROMPT}\n\nКОНТЕКСТ ПАРНОЇ МЕДІАЦІЇ:\nТи проводиш сеанс для цього користувача. Ось його історія: "${userStory}". А ось історія його партнера (контекст для тебе): "${partnerStory}".\n\nЗАВДАННЯ: Напиши глибокий, персоналізований розбір ВИКЛЮЧНО для цього користувача. Покажи його особисту Тінь, його внесок у конфлікт і дай чіткі особисті практичні кроки. Звертайся безпосередньо до нього, екологічно і твердо, без зайвої води.`;
-
                 const promptForPartner = `ІНСТРУКЦІЯ:\n${WESYNC_SYSTEM_PROMPT}\n\nКОНТЕКСТ ПАРНОЇ МЕДІАЦІЇ:\nТи проводиш сеанс для партнера цього користувача. Ось його історія: "${partnerStory}". А ось історія його партнера (контекст для тебе): "${userStory}".\n\nЗАВДАННЯ: Напиши глибокий, персоналізований розбір ВИКЛЮЧНО для партнера. Покажи його особисту Тінь, його захисні патерни, і дай чіткі особисті практичні кроки. Звертайся безпосередньо до нього, екологічно і твердо, без зайвої води.`;
 
                 const generateAIResponse = async (promptText) => {
@@ -956,7 +921,6 @@ if (!access.allowed) {
                 await ctx.api.deleteMessage(ctx.chat.id, waitMsg1.message_id).catch(() => {});
                 if (partner && waitMsg2) await bot.api.deleteMessage(partner.telegramId, waitMsg2.message_id).catch(() => {});
 
-                // ВІДПРАВКА
                 const sendToChat = async (chatId, textToSend) => {
                     const maxLength = 4000;
                     while (textToSend.length > 0) {
@@ -976,7 +940,6 @@ if (!access.allowed) {
                     await sendToChat(partner.telegramId, `🧠 **Ваш персональний розбір медіації:**\n\n` + responseForPartner);
                 }
 
-                // Кнопки фідбеку
                 const feedbackMsg = "Як ви оцінюєте цей розбір? Чи допоміг він поглянути на ситуацію інакше?";
                 const feedbackKeyboard = new InlineKeyboard()
                     .text("🟢 Так, стало легше", "feedback_good")
