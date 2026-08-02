@@ -446,26 +446,7 @@ bot.command('feedback', async (ctx) => {
         textToSend = textToSend.slice(chunk.length).trim();
     }
 });
-// --- ФУНКЦІЯ ПЕРЕВІРКИ ДОСТУПУ ТА ПІДПИСКИ ---
-function hasActiveAccess(user, requiredPlan = 'solo') {
-    // 1. Якщо це перший раз — даємо безкоштовний тестовий доступ
-    if (!user.hasUsedFreeSession) {
-        return { allowed: true, isFreeTrial: true };
-    }
 
-    // 2. Якщо є активна підписка
-    if (user.subscription && user.subscription.isActive && user.subscription.expiresAt) {
-        const now = new Date();
-        const expiresAt = new Date(user.subscription.expiresAt);
-
-        // Перевіряємо, чи не закінчився термін дії
-        if (expiresAt > now) {
-            if (requiredPlan === 'pair' && user.subscription.plan !== 'pair') {
-                return { allowed: false, reason: 'NEED_PAIR_PLAN' };
-            }
-            return { allowed: true, isFreeTrial: false };
-        }
-    }
 
     return { allowed: false, reason: 'EXPIRED' };
 }
