@@ -163,9 +163,8 @@ bot.command('start', async (ctx) => {
                         [{ text: "📊 Статистика", callback_data: "admin_stats" }],
                         [{ text: "👥 Активні пари", callback_data: "admin_sessions" }],
                         [{ text: "🚨 Запити до психолога", callback_data: "admin_requests" }],
-                        [{ text: "📋 Список користувачів", callback_data: "admin_users_list" }]
-                        [{ text: "💳 Видати доступ (Підписка)", callback_data: "admin_grant_access" }] // НОВА КНОПКА
-]
+                        [{ text: "📋 Список користувачів", callback_data: "admin_users_list" }],
+                        [{ text: "💳 Видати доступ (Підписка)", callback_data: "admin_grant_access" }], 
                     ]
                 }
             });
