@@ -448,8 +448,7 @@ bot.command('feedback', async (ctx) => {
 });
 
 
-    return { allowed: false, reason: 'EXPIRED' };
-}
+   
 bot.on('message:text', async (ctx) => {
     const userId = String(ctx.from.id);
     const text = ctx.message.text;
