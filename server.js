@@ -748,16 +748,16 @@ bot.on('message:text', async (ctx) => {
         return;
     }
 
-    // --- БЛОК ОСОБИСТОГО РОЗБОРУ ---
-    if (user.state === 'AWAITING_PERSONAL_MESSAGE') {
-        const access = hasActiveAccess(user, 'solo');
-        if (!access.allowed) {
+if (!access.allowed) {
             const adminUsername = process.env.ADMIN_USERNAME || 'адміністратор';
             await ctx.reply(
                 `🔒 <b>Ваш безкоштовний тестовий період завершено.</b>\n\n` +
-                `Щоб продовжити користуватися індивідуальними розборами WeSync, придбайте підписку.\n\n` +
-                `Для оформлення напишіть адміністратору: @${adminUsername}\n` +
-                `Ваш ID для активації: <code>${userId}</code>`,
+                `Щоб продовжити користуватися WeSync, оберіть відповідний тариф:\n\n` +
+                `🔥 <b>Разовий розбір</b> (1 повна сесія, 24 год) — 150 грн\n` +
+                `👤 <b>Підписка "Соло"</b> (1 місяць) — 350 грн\n` +
+                `👥 <b>Підписка "Пара"</b> (1 місяць, платить ініціатор) — 600 грн\n\n` +
+                `💳 Для оформлення оплати та активації напишіть адміністратору: @${adminUsername}\n` +
+                `🆔 Ваш ID для активації: <code>${userId}</code>`,
                 { parse_mode: "HTML" }
             );
             user.state = 'IDLE';
