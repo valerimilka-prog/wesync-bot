@@ -26,7 +26,7 @@ const userSchema = new mongoose.Schema({
     state: { type: String, default: 'IDLE' }, 
     partnerId: String, 
     chatHistory: [{
-        role: String,       
+        role: String,        
         content: String,    
         timestamp: { type: Date, default: Date.now } 
     }],
@@ -287,7 +287,7 @@ bot.on('callback_query:data', async (ctx) => {
            const activePairs = await User.countDocuments({ partnerId: { $ne: null } });
            await ctx.reply(`👥 **Активні пари:**\nЗараз синхронізованих пар у роботі: ${activePairs / 2}`);
         } else if (data === 'admin_requests') {
-            await ctx.reply("🚨 **Запити до психолога:**\nНаразі нових запитів від пар немає.");
+             await ctx.reply("🚨 **Запити до психолога:**\nНаразі нових запитів від пар немає.");
         } else if (data === 'admin_users_list') {
             const allUsers = await User.find({});
             if (allUsers.length === 0) {
@@ -305,12 +305,12 @@ bot.on('callback_query:data', async (ctx) => {
                 user.state = 'AWAITING_GRANT_INFO';
                 await user.save();
                 await ctx.reply(
-                    "💳 **Керування доступом**\n\n" +
+                    "💳 <b>Керування доступом</b>\n\n" +
                     "Надішліть дані для активації підписки одним повідомленням у форматі:\n" +
-                    "`ID ТАРИФ ДНІ`\n\n" +
-                    "**Приклад:** `123456789 pair 30`\n\n" +
-                    "*(Тарифи: `solo` — індивідуальний, `pair` — парний)*", 
-                    { parse_mode: "Markdown" }
+                    "<code>ID ТАРИФ ДНІ</code>\n\n" +
+                    "<b>Приклад:</b> <code>123456789 pair 30</code>\n\n" +
+                    "<i>(Тарифи: solo — індивідуальний, pair — парний)</i>", 
+                    { parse_mode: "HTML" }
                 );
             }
             if (user) {
@@ -474,7 +474,7 @@ bot.on('message:text', async (ctx) => {
         const parts = text.trim().split(' ');
         
         if (parts.length < 3) {
-            await ctx.reply("❌ Некоректний формат. Введіть: `ID ТАРИФ ДНІ` (наприклад: `123456789 pair 30`)", { parse_mode: "Markdown" });
+            await ctx.reply("❌ Некоректний формат. Введіть: <code>ID ТАРИФ ДНІ</code> (наприклад: <code>123456789 pair 30</code>)", { parse_mode: "HTML" });
             return;
         }
 
@@ -483,13 +483,13 @@ bot.on('message:text', async (ctx) => {
         const days = parseInt(parts[2]);
 
         if (isNaN(days) || (planType !== 'solo' && planType !== 'pair')) {
-            await ctx.reply("❌ Помилка: дні мають бути числом, а тариф — `solo` або `pair`.", { parse_mode: "Markdown" });
+            await ctx.reply("❌ Помилка: дні мають бути числом, а тариф — <code>solo</code> або <code>pair</code>.", { parse_mode: "HTML" });
             return;
         }
 
         const targetUser = await User.findOne({ telegramId: targetId });
         if (!targetUser) {
-            await ctx.reply(`❌ Користувача з ID \`${targetId}\` не знайдено в базі даних.`, { parse_mode: "Markdown" });
+            await ctx.reply(`❌ Користувача з ID <code>${targetId}</code> не знайдено в базі даних.`, { parse_mode: "HTML" });
             user.state = 'IDLE';
             await user.save();
             return;
@@ -509,7 +509,7 @@ bot.on('message:text', async (ctx) => {
         user.state = 'IDLE';
         await user.save();
 
-        await ctx.reply(`✅ **Підписку успішно активовано!**\n\n👤 Клієнт: ${targetUser.firstName} (ID: \`${targetId}\`)\n📦 Тариф: **${planType.toUpperCase()}**\n📅 Дійсна до: **${expiryDate.toLocaleDateString('uk-UA')}**`, { parse_mode: "Markdown" });
+        await ctx.reply(`✅ <b>Підписку успішно активовано!</b>\n\n👤 Клієнт: ${targetUser.firstName} (ID: <code>${targetId}</code>)\n📦 Тариф: <b>${planType.toUpperCase()}</b>\n📅 Дійсна до: <b>${expiryDate.toLocaleDateString('uk-UA')}</b>`, { parse_mode: "HTML" });
 
         try {
             await bot.api.sendMessage(targetId, `🎉 **Вітаємо!**\n\nВам активовано підписку тарифу **${planType === 'solo' ? 'Індивідуальний' : 'Парний'}** на ${days} днів!\nУсі функції бота знову доступні.`);
@@ -606,7 +606,15 @@ bot.on('message:text', async (ctx) => {
                 .text("🧠 Обговорити з ШІ", `discuss_ai_${userId}`).row()
                 .text("❌ Завершити сесію", `end_session_${userId}`); // НОВА КНОПКА
 
-            await bot.api.sendMessage(adminId, `🚨 **Живий чат з клієнтом!**\n👤 ID: ${userId}\n\n💬 **Клієнт пише:**\n${text}\n\n${modelUsed} **Чернетка (з урахуванням історії):**\n${aiDraft}`, { reply_markup: adminKeyboard });
+            let dossier = `🚨 <b>Новий запит на консультацію!</b>\n\n👤 <b>Клієнт:</b> ${ctx.from.first_name} (ID: ${ctx.from.id})\n`;
+            if (user.partnerId) dossier += `🔗 <b>Партнер ID:</b> ${user.partnerId}\n`;
+            dossier += `\n💬 <b>Повідомлення клієнта:</b>\n"${text}"\n`;
+            if (user.chatHistory && user.chatHistory.length > 0) {
+                const lastAIResponse = user.chatHistory.filter(msg => msg.role === 'model').pop();
+                if (lastAIResponse) dossier += `\n🤖 <b>Останній висновок ШІ:</b>\n${lastAIResponse.content.substring(0, 500)}...\n`;
+            }
+            dossier += `\n${modelUsed} **Чернетка (з урахуванням історії):**\n${aiDraft}`;
+            await bot.api.sendMessage(adminId, dossier, { parse_mode: "HTML", reply_markup: adminKeyboard });
         }
         return;
     }
@@ -691,11 +699,11 @@ bot.on('message:text', async (ctx) => {
         if (!canStartSession) {
             const adminUsername = process.env.ADMIN_USERNAME || 'адміністратор';
             await ctx.reply(
-                `🔒 **Безкоштовну сесію для вашої пари вичерпано.**\n\n` +
-                `Щоб продовжити користуватися парною медіацією WeSync, придбайте тариф **«Парний»**.\n\n` +
+                `🔒 <b>Безкоштовну сесію для вашої пари вичерпано.</b>\n\n` +
+                `Щоб продовжити користуватися парною медіацією WeSync, придбайте тариф <b>«Парний»</b>.\n\n` +
                 `Для активації напишіть адміністратору: @${adminUsername}\n` +
-                `Ваш ID для активації: \`${userId}\``,
-                { parse_mode: "Markdown" }
+                `Ваш ID для активації: <code>${userId}</code>`,
+                { parse_mode: "HTML" }
             );
             user.state = 'IDLE';
             await user.save();
@@ -724,13 +732,13 @@ bot.on('message:text', async (ctx) => {
             partner.tasks.push({ description: rewrittenTask, authorId: userId, status: 'PENDING' });
             await partner.save();
             
-            await ctx.reply(`✅ Завдання надіслано партнеру у такому вигляді:\n\n*${rewrittenTask}*\n\nВоно вважатиметься виконаним лише після його підтвердження.`, { parse_mode: "Markdown" });
+            await ctx.reply(`✅ Завдання надіслано партнеру у такому вигляді:\n\n<i>${rewrittenTask}</i>\n\nВоно вважатиметься виконаним лише після його підтвердження.`, { parse_mode: "HTML" });
             
             const keyboard = new InlineKeyboard()
                 .text("Підтвердити виконання", `verify_task_${partner.tasks[partner.tasks.length-1]._id}`)
                 .text("Відхилити", "reject_task");
                 
-            await bot.api.sendMessage(partner.telegramId, `🔔 **Нове прохання від партнера:**\n\n${rewrittenTask}\n\nСтатус: Очікує виконання.`, { reply_markup: keyboard, parse_mode: "Markdown" });
+            await bot.api.sendMessage(partner.telegramId, `🔔 <b>Нове прохання від партнера:</b>\n\n${rewrittenTask}\n\nСтатус: Очікує виконання.`, { reply_markup: keyboard, parse_mode: "HTML" });
         }
         user.state = 'IDLE';
         await user.save();
@@ -743,11 +751,11 @@ bot.on('message:text', async (ctx) => {
         if (!access.allowed) {
             const adminUsername = process.env.ADMIN_USERNAME || 'адміністратор';
             await ctx.reply(
-                `🔒 **Ваш безкоштовний тестовий період завершено.**\n\n` +
+                `🔒 <b>Ваш безкоштовний тестовий період завершено.</b>\n\n` +
                 `Щоб продовжити користуватися індивідуальними розборами WeSync, придбайте підписку.\n\n` +
                 `Для оформлення напишіть адміністратору: @${adminUsername}\n` +
-                `Ваш ID для активації: \`${userId}\``,
-                { parse_mode: "Markdown" }
+                `Ваш ID для активації: <code>${userId}</code>`,
+                { parse_mode: "HTML" }
             );
             user.state = 'IDLE';
             await user.save();
@@ -803,26 +811,6 @@ bot.on('message:text', async (ctx) => {
         await ctx.reply(aiReply, { reply_markup: feedbackKeyboard });
         if (!user.chatHistory) user.chatHistory = [];
         user.chatHistory.push({ role: 'user', content: textToAnalyze }, { role: 'model', content: aiReply });
-        user.state = 'IDLE';
-        await user.save();
-        return;
-    }
-
-    // --- БЛОК ЗАПИТУ ДО ПСИХОЛОГА ---
-    if (user.state === 'AWAITING_SUPPORT_MESSAGE') {
-        let dossier = `🚨 **Новий запит на консультацію!**\n\n👤 **Клієнт:** ${ctx.from.first_name} (ID: ${ctx.from.id})\n`;
-        if (user.partnerId) dossier += `🔗 **Партнер ID:** ${user.partnerId}\n`;
-        dossier += `\n💬 **Повідомлення клієнта:**\n"${text}"\n`;
-        if (user.chatHistory && user.chatHistory.length > 0) {
-            const lastAIResponse = user.chatHistory.filter(msg => msg.role === 'model').pop();
-            if (lastAIResponse) dossier += `\n🤖 **Останній висновок ШІ:**\n${lastAIResponse.content.substring(0, 500)}...\n`;
-        }
-        try {
-            await bot.api.sendMessage(adminId, dossier, { parse_mode: "Markdown" }); 
-            await ctx.reply("✅ Ваше повідомлення успішно передано психологу.");
-        } catch (err) {
-            await ctx.reply("Виникла помилка. Спробуйте пізніше.");
-        }
         user.state = 'IDLE';
         await user.save();
         return;
@@ -884,10 +872,10 @@ bot.on('message:text', async (ctx) => {
 
                 // --- ЧЕРВОНИЙ ПРОТОКОЛ ---
                 if (responseText.includes('STOP_EMERGENCY_ALERT')) {
-                    const alertMsg = "⚠️ **Автоматична медіація зупинена через порушення правил безпеки.**\nДля безпеки вашої пари пропонується підключення Ментора. Психолог вже отримав сповіщення.";
-                    await ctx.reply(alertMsg, { parse_mode: "Markdown" });
-                    if (partner) await bot.api.sendMessage(partner.telegramId, alertMsg, { parse_mode: "Markdown" });
-                    if (adminId) await bot.api.sendMessage(adminId, `🔴 **EMERGENCY_ALERT (ЧЕРВОНИЙ ПРОТОКОЛ)** 🔴\n\nСистема виявила загрозу (можливе насильство/аб'юз).\n**Користувачі:** ${user.firstName} (ID: ${userId}) та Партнер (ID: ${partner?.telegramId})\n\n**Історія, що викликала тригер:**\n"${text}"\n\nЗв'яжіться з ними негайно!`);
+                    const alertMsg = "⚠️ <b>Автоматична медіація зупинена через порушення правил безпеки.</b>\nДля безпеки вашої пари пропонується підключення Ментора. Психолог вже отримав сповіщення.";
+                    await ctx.reply(alertMsg, { parse_mode: "HTML" });
+                    if (partner) await bot.api.sendMessage(partner.telegramId, alertMsg, { parse_mode: "HTML" });
+                    if (adminId) await bot.api.sendMessage(adminId, `🔴 <b>EMERGENCY_ALERT (ЧЕРВОНИЙ ПРОТОКОЛ)</b> 🔴\n\nСистема виявила загрозу (можливе насильство/аб'юз).\n<b>Користувачі:</b> ${user.firstName} (ID: ${userId}) та Партнер (ID: ${partner?.telegramId})\n\n<b>Історія, що викликала тригер:</b>\n"${text}"\n\nЗв'яжіться з ними негайно!`, { parse_mode: "HTML" });
                     
                     user.state = 'IDLE'; 
                     if (partner) partner.state = 'IDLE';
@@ -910,8 +898,8 @@ bot.on('message:text', async (ctx) => {
                         });
                         const adminData = await adminRes.json();
                         if (adminRes.ok && adminData.candidates?.[0]?.content?.parts?.[0]?.text) {
-                            const adminSummary = `📋 **Звіт супервізора (Троянський кінь):**\n\n` + adminData.candidates[0].content.parts[0].text;
-                            await bot.api.sendMessage(adminId, adminSummary, { parse_mode: "Markdown" }).catch(() => {
+                            const adminSummary = `📋 Звіт супервізора (Троянський кінь):\n\n` + adminData.candidates[0].content.parts[0].text;
+                            await bot.api.sendMessage(adminId, adminSummary).catch(() => {
                                 bot.api.sendMessage(adminId, adminSummary); 
                             });
                         }
