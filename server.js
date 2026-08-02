@@ -199,8 +199,24 @@ bot.command('reset', async (ctx) => {
     if (user) {
         user.state = 'IDLE';
         user.chatHistory = []; 
+        
+        // --- НОВЕ: Розриваємо зв'язок з партнером ---
+        if (user.partnerId) {
+            const partner = await User.findOne({ telegramId: user.partnerId });
+            if (partner) {
+                partner.partnerId = null;
+                partner.state = 'IDLE';
+                partner.chatHistory = [];
+                await partner.save();
+                try {
+                    await bot.api.sendMessage(partner.telegramId, "🔄 Ваш партнер обнулив сесію. Зв'язок розірвано. Ви можете почати все заново.");
+                } catch(e) {}
+            }
+            user.partnerId = null;
+        }
+        
         await user.save();
-        await ctx.reply("🔄 Вашу поточну сесію скинуто. Ви можете почати все заново.");
+        await ctx.reply("🔄 Вашу поточну сесію скинуто, а зв'язок із партнером розірвано. Ви можете почати все заново.");
     } else {
         await ctx.reply("Ви ще не зареєстровані. Натисніть /start.");
     }
