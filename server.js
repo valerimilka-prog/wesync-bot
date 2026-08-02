@@ -39,6 +39,13 @@ const userSchema = new mongoose.Schema({
     }],
     goodFeedback: { type: Number, default: 0 },
     badFeedback: { type: Number, default: 0 },
+    // --- ПОЛЕ ПІДПИСКИ ТА ЛІМІТІВ ---
+    subscription: {
+        plan: { type: String, default: 'free' },
+        expiresAt: { type: Date, default: null },
+        isActive: { type: Boolean, default: false }
+    },
+    hasUsedFreeSession: { type: Boolean, default: false },
     // --- НОВЕ: ПОЛЕ ДЛЯ ТЕКСТОВИХ ВІДГУКІВ ---
     feedbackComments: [{
         text: String,
@@ -47,6 +54,30 @@ const userSchema = new mongoose.Schema({
 });
 
 const User = mongoose.model('User', userSchema);
+// --- ФУНКЦІЯ ПЕРЕВІРКИ ДОСТУПУ ТА ПІДПИСКИ ---
+function hasActiveAccess(user, requiredPlan = 'solo') {
+    // 1. Якщо це перший раз — даємо безкоштовний тестовий доступ
+    if (!user.hasUsedFreeSession) {
+        return { allowed: true, isFreeTrial: true };
+    }
+
+    // 2. Якщо є активна підписка
+    if (user.subscription && user.subscription.isActive && user.subscription.expiresAt) {
+        const now = new Date();
+        const expiresAt = new Date(user.subscription.expiresAt);
+
+        // Перевіряємо, чи не закінчився термін дії
+        if (expiresAt > now) {
+            // Якщо потрібен парний тариф, а у юзера тільки соло
+            if (requiredPlan === 'pair' && user.subscription.plan !== 'pair') {
+                return { allowed: false, reason: 'NEED_PAIR_PLAN' };
+            }
+            return { allowed: true, isFreeTrial: false };
+        }
+    }
+
+    return { allowed: false, reason: 'EXPIRED' };
+}
 
 bot.use(session({
     initial: () => ({
@@ -133,6 +164,8 @@ bot.command('start', async (ctx) => {
                         [{ text: "👥 Активні пари", callback_data: "admin_sessions" }],
                         [{ text: "🚨 Запити до психолога", callback_data: "admin_requests" }],
                         [{ text: "📋 Список користувачів", callback_data: "admin_users_list" }]
+                        [{ text: "💳 Видати доступ (Підписка)", callback_data: "admin_grant_access" }] // НОВА КНОПКА
+]
                     ]
                 }
             });
@@ -251,6 +284,19 @@ bot.on('callback_query:data', async (ctx) => {
                     userListText += `${index + 1}. ${u.firstName} (ID: ${u.telegramId})\n`;
                 });
                 await ctx.reply(userListText);
+            }
+            } else if (data === 'admin_grant_access') {
+            if (user) {
+                user.state = 'AWAITING_GRANT_INFO';
+                await user.save();
+                await ctx.reply(
+                    "💳 **Керування доступом**\n\n" +
+                    "Надішліть дані для активації підписки одним повідомленням у форматі:\n" +
+                    "`ID ТАРИФ ДНІ`\n\n" +
+                    "**Приклад:** `123456789 pair 30`\n\n" +
+                    "*(Тарифи: `solo` — індивідуальний, `pair` — парний)*", 
+                    { parse_mode: "Markdown" }
+                );
             }
         } else if (data === 'contact_admin') {
             if (user) {
@@ -401,7 +447,29 @@ bot.command('feedback', async (ctx) => {
         textToSend = textToSend.slice(chunk.length).trim();
     }
 });
+// --- ФУНКЦІЯ ПЕРЕВІРКИ ДОСТУПУ ТА ПІДПИСКИ ---
+function hasActiveAccess(user, requiredPlan = 'solo') {
+    // 1. Якщо це перший раз — даємо безкоштовний тестовий доступ
+    if (!user.hasUsedFreeSession) {
+        return { allowed: true, isFreeTrial: true };
+    }
 
+    // 2. Якщо є активна підписка
+    if (user.subscription && user.subscription.isActive && user.subscription.expiresAt) {
+        const now = new Date();
+        const expiresAt = new Date(user.subscription.expiresAt);
+
+        // Перевіряємо, чи не закінчився термін дії
+        if (expiresAt > now) {
+            if (requiredPlan === 'pair' && user.subscription.plan !== 'pair') {
+                return { allowed: false, reason: 'NEED_PAIR_PLAN' };
+            }
+            return { allowed: true, isFreeTrial: false };
+        }
+    }
+
+    return { allowed: false, reason: 'EXPIRED' };
+}
 bot.on('message:text', async (ctx) => {
     const userId = String(ctx.from.id);
     const text = ctx.message.text;
@@ -409,6 +477,55 @@ bot.on('message:text', async (ctx) => {
     const user = await User.findOne({ telegramId: userId });
     
     if (!user) return ctx.reply("Будь ласка, почніть з команди /start для реєстрації.");
+    // --- БЛОК АКТИВАЦІЇ ПІДПИСКИ АДМІНОМ ---
+    if (user.state === 'AWAITING_GRANT_INFO' && String(userId) === String(adminId)) {
+        const parts = text.trim().split(' ');
+        
+        if (parts.length < 3) {
+            await ctx.reply("❌ Некоректний формат. Введіть: `ID ТАРИФ ДНІ` (наприклад: `123456789 pair 30`)", { parse_mode: "Markdown" });
+            return;
+        }
+
+        const targetId = parts[0];
+        const planType = parts[1].toLowerCase();
+        const days = parseInt(parts[2]);
+
+        if (isNaN(days) || (planType !== 'solo' && planType !== 'pair')) {
+            await ctx.reply("❌ Помилка: дні мають бути числом, а тариф — `solo` або `pair`.", { parse_mode: "Markdown" });
+            return;
+        }
+
+        const targetUser = await User.findOne({ telegramId: targetId });
+        if (!targetUser) {
+            await ctx.reply(`❌ Користувача з ID \`${targetId}\` не знайдено в базі даних.`, { parse_mode: "Markdown" });
+            user.state = 'IDLE';
+            await user.save();
+            return;
+        }
+
+        const expiryDate = new Date();
+        expiryDate.setDate(expiryDate.getDate() + days);
+
+        targetUser.subscription = {
+            plan: planType,
+            expiresAt: expiryDate,
+            isActive: true
+        };
+
+        await targetUser.save();
+
+        user.state = 'IDLE';
+        await user.save();
+
+        await ctx.reply(`✅ **Підписку успішно активовано!**\n\n👤 Клієнт: ${targetUser.firstName} (ID: \`${targetId}\`)\n📦 Тариф: **${planType.toUpperCase()}**\n📅 Дійсна до: **${expiryDate.toLocaleDateString('uk-UA')}**`, { parse_mode: "Markdown" });
+
+        try {
+            await bot.api.sendMessage(targetId, `🎉 **Вітаємо!**\n\nВам активовано підписку тарифу **${planType === 'solo' ? 'Індивідуальний' : 'Парний'}** на ${days} днів!\nУсі функції бота знову доступні.`);
+        } catch (err) {
+            console.error("Не вдалося відправити сповіщення клієнту:", err);
+        }
+        return;
+    }
     // --- БЛОК ПРИЙОМУ КОМЕНТАРЯ ДО ВІДГУКУ ---
     if (user.state === 'AWAITING_FEEDBACK_COMMENT') {
         const feedbackText = ctx.message.text;
@@ -603,6 +720,25 @@ bot.on('message:text', async (ctx) => {
 
     // --- БЛОК ОСОБИСТОГО РОЗБОРУ ---
     if (user.state === 'AWAITING_PERSONAL_MESSAGE') {
+        const access = hasActiveAccess(user, 'solo');
+        if (!access.allowed) {
+            const adminUsername = process.env.ADMIN_USERNAME || 'адміністратор';
+            await ctx.reply(
+                `🔒 **Ваш безкоштовний тестовий період завершено.**\n\n` +
+                `Щоб продовжити користуватися індивідуальними розборами WeSync, придбайте підписку.\n\n` +
+                `Для оформлення напишіть адміністратору: @${adminUsername}\n` +
+                `Ваш ID для активації: \`${userId}\``,
+                { parse_mode: "Markdown" }
+            );
+            user.state = 'IDLE';
+            await user.save();
+            return;
+        }
+
+        // Якщо це була безкоштовна сесія — фіксуємо, що вона використана
+        if (access.isFreeTrial) {
+            user.hasUsedFreeSession = true;
+        }
         const textToAnalyze = ctx.message.text;
         await ctx.reply("⏳ Аналізую ситуацію через призму аналітичної психології...");
         let aiReply = "";
