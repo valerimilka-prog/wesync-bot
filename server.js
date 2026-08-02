@@ -712,24 +712,23 @@ bot.on('message:text', async (ctx) => {
     }
 
     // --- БЛОК ОСОБИСТОГО РОЗБОРУ ---
-    if (user.state === 'AWAITING_PERSONAL_MESSAGE') {
-        const access = hasActiveAccess(user, 'solo');
-        if (!access.allowed) {
-            const adminUsername = process.env.ADMIN_USERNAME || 'адміністратор';
-            await ctx.reply(
-                `🔒 **Ваш безкоштовний тестовий період завершено.**\n\n` +
-                `Щоб продовжити користуватися платформами WeSync, оберіть відповідний тариф:\n\n` +
-                `👤 **Індивідуальний (Соло):** 300–400 грн / місяць\n` +
-                `👥 **Парний (Медіація):** 500–700 грн / місяць\n\n` +
-                `💳 Для оформлення оплати та активації напишіть адміністратору: @${adminUsername}\n` +
-                `🆔 Ваш ID для підключення: \`${userId}\``,
-                { parse_mode: "Markdown" }
-            );
-            user.state = 'IDLE';
-            await user.save();
-            return;
-        }
-
+if (user.state === 'AWAITING_PERSONAL_MESSAGE') {
+    const access = hasActiveAccess(user, 'solo');
+    if (!access.allowed) {
+        const adminUsername = process.env.ADMIN_USERNAME || 'адміністратор';
+        await ctx.reply(
+            `🔒 **Ваш безкоштовний тестовий період завершено.**\n\n` +
+            `Щоб продовжити користуватися платформами WeSync, оберіть відповідний тариф:\n\n` +
+            `👤 **Індивідуальний (Соло):** 300 грн / місяць\n` +
+            `👥 **Парний (Медіація):** 500 грн / місяць\n\n` +
+            `💳 Для оформлення оплати та активації напишіть адміністратору: @${adminUsername}\n` +
+            `🆔 Ваш ID для підключення: \`${userId}\``,
+            { parse_mode: "Markdown" }
+        );
+        user.state = 'IDLE';
+        await user.save();
+        return;
+    }
         // Якщо це була безкоштовна сесія — фіксуємо, що вона використана
         if (access.isFreeTrial) {
             user.hasUsedFreeSession = true;
