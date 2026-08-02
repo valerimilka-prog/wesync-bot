@@ -446,9 +446,7 @@ bot.command('feedback', async (ctx) => {
         textToSend = textToSend.slice(chunk.length).trim();
     }
 });
-
-
-   
+ 
 bot.on('message:text', async (ctx) => {
     const userId = String(ctx.from.id);
     const text = ctx.message.text;
