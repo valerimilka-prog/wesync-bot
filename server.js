@@ -455,49 +455,39 @@ bot.on('message:text', async (ctx) => {
     
     if (!user) return ctx.reply("Будь ласка, почніть з команди /start для реєстрації.");
     
+// --- БЛОК АКТИВАЦІЇ ПІДПИСКИ АДМІНОМ --- 
     if (user.state === 'AWAITING_GRANT_INFO' && String(userId) === String(adminId)) {
         const parts = text.trim().split(' ');
-        
         if (parts.length < 3) {
-            await ctx.reply("❌ Некоректний формат. Введіть: <code>ID ТАРИФ ДНІ</code> (наприклад: <code>123456789 pair 30</code>)", { parse_mode: "HTML" });
+            await ctx.reply("❌ Некоректний формат. Введіть: ID ТАРИФ ДНІ (наприклад: 123456789 pair 30)");
             return;
         }
-
         const targetId = parts[0];
         const planType = parts[1].toLowerCase();
         const days = parseInt(parts[2]);
-
         if (isNaN(days) || (planType !== 'solo' && planType !== 'pair')) {
-            await ctx.reply("❌ Помилка: дні мають бути числом, а тариф — <code>solo</code> або <code>pair</code>.", { parse_mode: "HTML" });
+            await ctx.reply("❌ Помилка: дні мають бути числом, а тариф — solo або pair.");
             return;
         }
-
         const targetUser = await User.findOne({ telegramId: targetId });
         if (!targetUser) {
-            await ctx.reply(`❌ Користувача з ID <code>${targetId}</code> не знайдено в базі даних.`, { parse_mode: "HTML" });
+            await ctx.reply(`❌ Користувача з ID ${targetId} не знайдено в базі даних.`);
             user.state = 'IDLE';
             await user.save();
             return;
         }
-
         const expiryDate = new Date();
         expiryDate.setDate(expiryDate.getDate() + days);
-
-        targetUser.subscription = {
-            plan: planType,
-            expiresAt: expiryDate,
-            isActive: true
-        };
-
+        
+        targetUser.subscription = { plan: planType, expiresAt: expiryDate, isActive: true };
         await targetUser.save();
-
         user.state = 'IDLE';
         await user.save();
-
-        await ctx.reply(`✅ <b>Підписку успішно активовано!</b>\n\n👤 Клієнт: ${targetUser.firstName} (ID: <code>${targetId}</code>)\n📦 Тариф: <b>${planType.toUpperCase()}</b>\n📅 Дійсна до: <b>${expiryDate.toLocaleDateString('uk-UA')}</b>`, { parse_mode: "HTML" });
-
+        
+        await ctx.reply(`✅ Підписку успішно активовано!\n\n👤 Клієнт: ${targetUser.firstName} (ID: <code>${targetId}</code>)\n📦 Тариф: ${planType.toUpperCase()}\n📅 Дійсна до: ${expiryDate.toLocaleDateString('uk-UA')}`, { parse_mode: "HTML" });
+        
         try {
-            await bot.api.sendMessage(targetId, `🎉 **Вітаємо!**\n\nВам активовано підписку тарифу **${planType === 'solo' ? 'Індивідуальний' : 'Парний'}** на ${days} днів!\nУсі функції бота знову доступні.`);
+            await bot.api.sendMessage(targetId, `🎉 Вітаємо!\n\nВам активовано підписку тарифу ${planType === 'solo' ? 'Індивідуальний' : 'Парний'} на ${days} днів!\nУсі функції бота знову доступні.`);
         } catch (err) {
             console.error("Не вдалося відправити сповіщення клієнту:", err);
         }
@@ -671,29 +661,25 @@ bot.on('message:text', async (ctx) => {
  if (!canStartSession) {
         const adminUsername = process.env.ADMIN_USERNAME || 'адміністратор';
         
-        // Формуємо готові тексти
         const onceText = encodeURIComponent(`Привіт! Хочу придбати разовий розбір (150 грн). Мій ID: ${userId}`);
         const pairText = encodeURIComponent(`Привіт! Хочу придбати підписку "Пара" (600 грн). Мій ID: ${userId}`);
         
-        // Створюємо кнопки з посиланнями
         const paywallKeyboard = new InlineKeyboard()
             .url("🔥 Разовий розбір (150 грн)", `https://t.me/${adminUsername}?text=${onceText}`).row()
             .url("👥 Оформити 'Пара' (600 грн)", `https://t.me/${adminUsername}?text=${pairText}`);
 
         await ctx.reply(
-            `🔒 *Безкоштовну сесію для вашої пари вичерпано.*\n\n` +
+            `🔒 <b>Безкоштовну сесію для вашої пари вичерпано.</b>\n\n` +
             `Щоб продовжити користуватися парною медіацією WeSync, оберіть тариф:\n\n` +
-            `🔥 *Разовий розбір* (1 сесія, 24 год) — 150 грн\n` +
-            `👥 *Підписка "Пара"* (1 місяць) — 600 грн\n\n` +
-            `👇 *Натисніть на кнопку нижче*, щоб автоматично надіслати запит адміністратору:`,
-            { parse_mode: "Markdown", reply_markup: paywallKeyboard }
+            `🔥 <b>Разовий розбір</b> (1 сесія, 24 год) — 150 грн\n` +
+            `👥 <b>Підписка "Пара"</b> (1 місяць) — 600 грн\n\n` +
+            `👇 <b>Натисніть на кнопку нижче</b>, щоб автоматично надіслати запит адміністратору:`,
+            { parse_mode: "HTML", reply_markup: paywallKeyboard }
         );
         user.state = 'IDLE';
         await user.save();
         return;
     }
-    }
-
         if (userAccess.isFreeTrial) user.hasUsedFreeSession = true;
         if (partner && partnerAccess.isFreeTrial) {
             partner.hasUsedFreeSession = true;
@@ -733,25 +719,23 @@ bot.on('message:text', async (ctx) => {
 if (!access.allowed) {
         const adminUsername = process.env.ADMIN_USERNAME || 'адміністратор';
         
-        // Формуємо готові тексти
         const onceText = encodeURIComponent(`Привіт! Хочу придбати разовий розбір (150 грн). Мій ID: ${userId}`);
         const soloText = encodeURIComponent(`Привіт! Хочу придбати підписку "Соло" (350 грн). Мій ID: ${userId}`);
         const pairText = encodeURIComponent(`Привіт! Хочу придбати підписку "Пара" (600 грн). Мій ID: ${userId}`);
 
-        // Створюємо три кнопки
         const paywallKeyboard = new InlineKeyboard()
             .url("🔥 Разовий розбір (150 грн)", `https://t.me/${adminUsername}?text=${onceText}`).row()
             .url("👤 Оформити 'Соло' (350 грн)", `https://t.me/${adminUsername}?text=${soloText}`).row()
             .url("👥 Оформити 'Пара' (600 грн)", `https://t.me/${adminUsername}?text=${pairText}`);
 
         await ctx.reply(
-            `🔒 *Ваш безкоштовний тестовий період завершено.*\n\n` +
+            `🔒 <b>Ваш безкоштовний тестовий період завершено.</b>\n\n` +
             `Щоб продовжити користуватися WeSync, оберіть відповідний тариф:\n\n` +
-            `🔥 *Разовий розбір* (1 сесія, 24 год) — 150 грн\n` +
-            `👤 *Підписка "Соло"* (1 місяць) — 350 грн\n` +
-            `👥 *Підписка "Пара"* (1 місяць) — 600 грн\n\n` +
-            `👇 *Натисніть на кнопку нижче*, щоб автоматично надіслати запит адміністратору:`,
-            { parse_mode: "Markdown", reply_markup: paywallKeyboard }
+            `🔥 <b>Разовий розбір</b> (1 сесія, 24 год) — 150 грн\n` +
+            `👤 <b>Підписка "Соло"</b> (1 місяць) — 350 грн\n` +
+            `👥 <b>Підписка "Пара"</b> (1 місяць) — 600 грн\n\n` +
+            `👇 <b>Натисніть на кнопку нижче</b>, щоб автоматично надіслати запит адміністратору:`,
+            { parse_mode: "HTML", reply_markup: paywallKeyboard }
         );
         user.state = 'IDLE';
         await user.save();
