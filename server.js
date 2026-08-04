@@ -315,7 +315,12 @@ bot.on('callback_query:data', async (ctx) => {
             }
             return;
         } else if (data === 'start_session' || data === 'start_mediation') {
+            if (user) {
+                user.state = 'AWAITING_STORY';
+                await user.save();
+            }
             await ctx.reply("📄 Ви обрали створення нової сесії...\n\nБудь ласка, опишіть своє бачення конфлікту.");
+        // --- ЛОГІКА КНОПОК ЗАВДАНЬ ---
         } else if (data === 'create_task') {
             if (!user.partnerId) return ctx.reply("Спочатку підключіть партнера.");
             user.state = 'AWAITING_TASK_DESC';
@@ -795,12 +800,19 @@ if (!access.allowed) {
         return;
     }
 
-    if (String(userId) === String(adminId) && !user.partnerId) user.partnerId = "ADMIN_TEST_MODE"; 
+if (String(userId) === String(adminId) && !user.partnerId) user.partnerId = "ADMIN_TEST_MODE"; 
+
+    // --- ЗАХИСТ ВІД ВИПАДКОВИХ ПОВІДОМЛЕНЬ В СТАНІ IDLE ---
+    if (user.state === 'IDLE') {
+        return ctx.reply("👇 Будь ласка, спочатку оберіть потрібну дію в головному меню (кнопка ☰ Menu зліва внизу).");
+    }
+
     if (!user.partnerId) return ctx.reply("⏳ Підключіть партнера (кнопка 'Підключитися до партнера').");
 
     const partner = await User.findOne({ telegramId: user.partnerId });
 
-    if (user.state === 'AWAITING_STORY' || user.state === 'IDLE') {
+    // --- БЛОК ЗБОРУ ІСТОРІЙ І ПАРНОЇ МЕДІАЦІЇ ---
+    if (user.state === 'AWAITING_STORY') {
         if (!user.chatHistory) user.chatHistory = [];
         user.chatHistory.push({ role: 'user', content: text });
         user.state = 'STORY_RECEIVED';
