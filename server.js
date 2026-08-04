@@ -971,6 +971,9 @@ bot.api.setMyCommands([
 ]).catch((err) => console.error("Помилка встановлення команд меню:", err));
 
 bot.start();
+app.get('/', (req, res) => {
+    res.send('WeSync Bot is alive and running!');
+});
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`🚀 Сервер WeSync активний на порту ${PORT}`);
