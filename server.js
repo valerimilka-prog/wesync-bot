@@ -668,22 +668,31 @@ bot.on('message:text', async (ctx) => {
 
         const canStartSession = userAccess.allowed || partnerAccess.allowed;
 
-        if (!canStartSession) {
-            const adminUsername = process.env.ADMIN_USERNAME || 'адміністратор';
-            await ctx.reply(
-                `🔒 <b>Безкоштовну сесію для вашої пари вичерпано.</b>\n\n` +
-                `Щоб продовжити користуватися WeSync, оберіть відповідний тариф:\n\n` +
-                `🔥 <b>Разовий розбір</b> (1 повна сесія, 24 год) — 150 грн\n` +
-                `👤 <b>Підписка "Соло"</b> (1 місяць) — 350 грн\n` +
-                `👥 <b>Підписка "Пара"</b> (1 місяць, платить ініціатор) — 600 грн\n\n` +
-                `💳 Для оформлення оплати та активації напишіть адміністратору: @${adminUsername}\n` +
-                `🆔 Ваш ID для активації: <code>${userId}</code>`,
-                { parse_mode: "HTML" }
-            );
-            user.state = 'IDLE';
-            await user.save();
-            return;
-        }
+ if (!canStartSession) {
+        const adminUsername = process.env.ADMIN_USERNAME || 'адміністратор';
+        
+        // Формуємо готові тексти
+        const onceText = encodeURIComponent(`Привіт! Хочу придбати разовий розбір (150 грн). Мій ID: ${userId}`);
+        const pairText = encodeURIComponent(`Привіт! Хочу придбати підписку "Пара" (600 грн). Мій ID: ${userId}`);
+        
+        // Створюємо кнопки з посиланнями
+        const paywallKeyboard = new InlineKeyboard()
+            .url("🔥 Разовий розбір (150 грн)", `https://t.me/${adminUsername}?text=${onceText}`).row()
+            .url("👥 Оформити 'Пара' (600 грн)", `https://t.me/${adminUsername}?text=${pairText}`);
+
+        await ctx.reply(
+            `🔒 *Безкоштовну сесію для вашої пари вичерпано.*\n\n` +
+            `Щоб продовжити користуватися парною медіацією WeSync, оберіть тариф:\n\n` +
+            `🔥 *Разовий розбір* (1 сесія, 24 год) — 150 грн\n` +
+            `👥 *Підписка "Пара"* (1 місяць) — 600 грн\n\n` +
+            `👇 *Натисніть на кнопку нижче*, щоб автоматично надіслати запит адміністратору:`,
+            { parse_mode: "Markdown", reply_markup: paywallKeyboard }
+        );
+        user.state = 'IDLE';
+        await user.save();
+        return;
+    }
+    }
 
         if (userAccess.isFreeTrial) user.hasUsedFreeSession = true;
         if (partner && partnerAccess.isFreeTrial) {
@@ -721,22 +730,33 @@ bot.on('message:text', async (ctx) => {
 
     if (user.state === 'AWAITING_PERSONAL_MESSAGE') {
         const access = hasActiveAccess(user, 'solo');
-        if (!access.allowed) {
-            const adminUsername = process.env.ADMIN_USERNAME || 'адміністратор';
-            await ctx.reply(
-                `🔒 <b>Ваш безкоштовний тестовий період завершено.</b>\n\n` +
-                `Щоб продовжити користуватися WeSync, оберіть відповідний тариф:\n\n` +
-                `🔥 <b>Разовий розбір</b> (1 повна сесія, 24 год) — 150 грн\n` +
-                `👤 <b>Підписка "Соло"</b> (1 місяць) — 350 грн\n` +
-                `👥 <b>Підписка "Пара"</b> (1 місяць, платить ініціатор) — 600 грн\n\n` +
-                `💳 Для оформлення оплати та активації напишіть адміністратору: @${adminUsername}\n` +
-                `🆔 Ваш ID для активації: <code>${userId}</code>`,
-                { parse_mode: "HTML" }
-            );
-            user.state = 'IDLE';
-            await user.save();
-            return;
-        }
+if (!access.allowed) {
+        const adminUsername = process.env.ADMIN_USERNAME || 'адміністратор';
+        
+        // Формуємо готові тексти
+        const onceText = encodeURIComponent(`Привіт! Хочу придбати разовий розбір (150 грн). Мій ID: ${userId}`);
+        const soloText = encodeURIComponent(`Привіт! Хочу придбати підписку "Соло" (350 грн). Мій ID: ${userId}`);
+        const pairText = encodeURIComponent(`Привіт! Хочу придбати підписку "Пара" (600 грн). Мій ID: ${userId}`);
+
+        // Створюємо три кнопки
+        const paywallKeyboard = new InlineKeyboard()
+            .url("🔥 Разовий розбір (150 грн)", `https://t.me/${adminUsername}?text=${onceText}`).row()
+            .url("👤 Оформити 'Соло' (350 грн)", `https://t.me/${adminUsername}?text=${soloText}`).row()
+            .url("👥 Оформити 'Пара' (600 грн)", `https://t.me/${adminUsername}?text=${pairText}`);
+
+        await ctx.reply(
+            `🔒 *Ваш безкоштовний тестовий період завершено.*\n\n` +
+            `Щоб продовжити користуватися WeSync, оберіть відповідний тариф:\n\n` +
+            `🔥 *Разовий розбір* (1 сесія, 24 год) — 150 грн\n` +
+            `👤 *Підписка "Соло"* (1 місяць) — 350 грн\n` +
+            `👥 *Підписка "Пара"* (1 місяць) — 600 грн\n\n` +
+            `👇 *Натисніть на кнопку нижче*, щоб автоматично надіслати запит адміністратору:`,
+            { parse_mode: "Markdown", reply_markup: paywallKeyboard }
+        );
+        user.state = 'IDLE';
+        await user.save();
+        return;
+    }
 
         if (access.isFreeTrial) {
             user.hasUsedFreeSession = true;
