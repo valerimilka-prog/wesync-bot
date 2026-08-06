@@ -990,7 +990,7 @@ bot.api.setMyCommands([
     { command: 'reset', description: 'Очистити історію сесії' },
     { command: 'feedback', description: '📊 Вивантажити відгуки (Адмін)' }
 ]).catch((err) => console.error("Помилка встановлення команд меню:", err));
-bot.on('video', async (ctx) => {
+bot.on('message:video', async (ctx) => {
     await ctx.reply("Ось твій file_id для цього відео:");
     await ctx.reply(ctx.message.video.file_id);
 });
