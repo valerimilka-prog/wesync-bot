@@ -357,7 +357,6 @@ bot.on('callback_query:data', async (ctx) => {
                  "3️⃣ <b>Гармонізація:</b> Ви отримуєте спільний огляд та шлях до порозуміння.",
         parse_mode: "HTML"
     });
-
     // 2. Одразу після відео відправляємо повний текст інструкції
     await ctx.reply(
         "📖 <b>Повна інструкція користувача:</b>\n\n" +
@@ -367,6 +366,7 @@ bot.on('callback_query:data', async (ctx) => {
         "• <b>Результат:</b> Після того, як обоє пройдете розбір, бот сформує глибокий аналіз та рекомендації.",
         { parse_mode: "HTML" }
     );
+        }
         else if (data === 'feedback_good' || data === 'feedback_bad') {
             const isGood = data === 'feedback_good';
             const adminId = process.env.ADMIN_ID;
