@@ -354,7 +354,8 @@ bot.on('callback_query:data', async (ctx) => {
                  "1️⃣ <b>Окремі розповіді:</b> Кожен із вас описує ситуацію наодинці з ботом.\n" +
                  "2️⃣ <b>ШІ-Аналіз:</b> Система знаходить розбіжності та м'яко вказує на тіньові сторони.\n" +
                  "3️⃣ <b>Гармонізація:</b> Ви отримуєте спільний огляд та шлях до порозуміння.",
-        parse_mode: "HTML")
+        parse_mode: "HTML"
+    });
     }
         else if (data === 'feedback_good' || data === 'feedback_bad') {
             const isGood = data === 'feedback_good';
