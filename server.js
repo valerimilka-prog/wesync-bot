@@ -348,15 +348,25 @@ bot.on('callback_query:data', async (ctx) => {
                 await ctx.reply("👤 <b>Особистий розбір</b>\n\nОпишіть ситуацію, яка вас турбує.", { parse_mode: "HTML" });
             }
             return;
-        } else if (data === 'help_info') {
-    await ctx.replyWithVideo('AAMCAgADGQEAAS1KZWp0zDu-Gn3f4pKqAai4Yy3PThTbAAKSlwACqSyoS_G69WWMoT-oAQAHbQADPQQ', {
+} else if (data === 'help_info') {
+    // 1. Відправляємо відео з короткою аннотацією
+    await ctx.replyWithVideo('BAACAgIAAxkBAAIEdGp01mWpEsuojPMu06N8OL_zIhI-AAJ2sQACnIKoS6oov8jG8RrrPQQ', {
         caption: "ℹ️ <b>Як працює WeSync?</b>\n\n" +
                  "1️⃣ <b>Окремі розповіді:</b> Кожен із вас описує ситуацію наодинці з ботом.\n" +
                  "2️⃣ <b>ШІ-Аналіз:</b> Система знаходить розбіжності та м'яко вказує на тіньові сторони.\n" +
                  "3️⃣ <b>Гармонізація:</b> Ви отримуєте спільний огляд та шлях до порозуміння.",
         parse_mode: "HTML"
     });
-    }
+
+    // 2. Одразу після відео відправляємо повний текст інструкції
+    await ctx.reply(
+        "📖 <b>Повна інструкція користувача:</b>\n\n" +
+        "• <b>Приватність:</b> Ваші відповіді залишаються конфіденційними до моменту формування спільного розбору.\n" +
+        "• <b>Як розпочати:</b> Натисніть кнопку <i>«Особистий розбір»</i> і чесно дайте відповіді на запитання бота.\n" +
+        "• <b>Запрошення партнера:</b> Поділіться посиланням із партнером/колегою, щоб бот зміг зіставити обидві точки зору.\n" +
+        "• <b>Результат:</b> Після того, як обоє пройдете розбір, бот сформує глибокий аналіз та рекомендації.",
+        { parse_mode: "HTML" }
+    );
         else if (data === 'feedback_good' || data === 'feedback_bad') {
             const isGood = data === 'feedback_good';
             const adminId = process.env.ADMIN_ID;
