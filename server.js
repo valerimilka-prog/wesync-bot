@@ -349,9 +349,13 @@ bot.on('callback_query:data', async (ctx) => {
             }
             return;
         } else if (data === 'help_info') {
-            const helpText = `ℹ️ <b>Як працює WeSync:</b>\n\n1️⃣ <b>Парна медіація:</b>\n   • Спершу натисніть <b>«Підключитися до партнера»</b>.\n   • Дочекайтеся підключення партнера.\n   • Після цього натисніть <b>«Почати медіацію»</b>.\n\n2️⃣ <b>Індивідуальний розбір:</b> Якщо ви хочете розібратися самостійно, натисніть <b>«Особистий розбір»</b>.\n\n3️⃣ <b>Зв'язок із фахівцем:</b> Звернутися до психолога напряму через червону кнопку.`;
-            await ctx.reply(helpText, { parse_mode: "HTML" });
-        } 
+    await ctx.replyWithVideo('AAMCAgADGQEAAS1KZWp0zDu-Gn3f4pKqAai4Yy3PThTbAAKSlwACqSyoS_G69WWMoT-oAQAHbQADPQQ', {
+        caption: "ℹ️ <b>Як працює WeSync?</b>\n\n" +
+                 "1️⃣ <b>Окремі розповіді:</b> Кожен із вас описує ситуацію наодинці з ботом.\n" +
+                 "2️⃣ <b>ШІ-Аналіз:</b> Система знаходить розбіжності та м'яко вказує на тіньові сторони.\n" +
+                 "3️⃣ <b>Гармонізація:</b> Ви отримуєте спільний огляд та шлях до порозуміння.",
+        parse_mode: "HTML")
+    }
         else if (data === 'feedback_good' || data === 'feedback_bad') {
             const isGood = data === 'feedback_good';
             const adminId = process.env.ADMIN_ID;
