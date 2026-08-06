@@ -990,7 +990,10 @@ bot.api.setMyCommands([
     { command: 'reset', description: 'Очистити історію сесії' },
     { command: 'feedback', description: '📊 Вивантажити відгуки (Адмін)' }
 ]).catch((err) => console.error("Помилка встановлення команд меню:", err));
-
+bot.on('video', async (ctx) => {
+    await ctx.reply("Ось твій file_id для цього відео:");
+    await ctx.reply(ctx.message.video.file_id);
+});
 bot.start();
 app.get('/', (req, res) => {
     res.send('WeSync Bot is alive and running!');
